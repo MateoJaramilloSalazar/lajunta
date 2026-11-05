@@ -1,0 +1,427 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Priorización de temas para nuestras tertulias</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,600&family=Public+Sans:wght@400;500;600&display=swap">
+<style>
+/* Una sola columna estrecha, un bloque por pantalla, tarjetas grandes para tocar con el pulgar. Teal = MÁS, ciruela = MENOS. */
+:root{
+  --bg:#F2F6F5; --surface:#FFFFFF; --fg:#14201F; --muted:#546869; --line:#D2DDDB;
+  --mas:#0E7C6B; --mas-soft:#DCF1EB; --menos:#9A3B5B; --menos-soft:#F7E2E9; --on-mas:#FFFFFF;
+  --display:"Newsreader",Georgia,"Times New Roman",serif;
+  --body:"Public Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0F1819; --surface:#162223; --fg:#E6EEEC; --muted:#9AAEAC; --line:#2A3D3E;
+  --mas:#4FC7B0; --mas-soft:#17352F; --menos:#E58AA8; --menos-soft:#3A1E2A; --on-mas:#0B1A17; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0F1819; --surface:#162223; --fg:#E6EEEC; --muted:#9AAEAC; --line:#2A3D3E;
+  --mas:#4FC7B0; --mas-soft:#17352F; --menos:#E58AA8; --menos-soft:#3A1E2A; --on-mas:#0B1A17; color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 var(--body);
+  padding-block:20px 40px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+main{max-width:600px;margin-inline:auto;display:flex;flex-direction:column;gap:16px}
+h1,h2,h3{font-family:var(--display);font-weight:600;margin:0;text-wrap:balance;line-height:1.2}
+h1{font-size:clamp(28px,7vw,38px)}
+h2{font-size:24px}
+h3{font-size:19px}
+h1:focus,h2:focus{outline:none}
+p{margin:0}
+.muted{color:var(--muted)}
+.small{font-size:14px}
+.eyebrow{font-size:14px;color:var(--muted);font-weight:600}
+.bar{height:4px;background:var(--line);border-radius:2px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--mas)}
+.head{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.card{background:var(--surface);border:2px solid var(--line);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.card p{color:var(--muted);font-size:15px}
+.card.is-mas{border-color:var(--mas);background:var(--mas-soft)}
+.card.is-menos{border-color:var(--menos);background:var(--menos-soft)}
+.pick{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+button{font:inherit;cursor:pointer}
+.pick button{min-height:44px;border-radius:8px;border:1.5px solid var(--line);background:var(--surface);color:var(--fg);font-weight:600}
+.pick button[data-act="m"][aria-pressed="true"]{background:var(--mas);border-color:var(--mas);color:var(--on-mas)}
+.pick button[data-act="l"][aria-pressed="true"]{background:var(--menos);border-color:var(--menos);color:var(--surface)}
+.btn{min-height:48px;padding:0 20px;border-radius:10px;border:1.5px solid var(--mas);background:var(--mas);color:var(--on-mas);font-weight:600}
+.btn.ghost{background:transparent;color:var(--fg);border-color:var(--line)}
+.btn[disabled]{opacity:.4;cursor:not-allowed}
+.nav{display:flex;gap:10px;justify-content:space-between}
+.nav .btn{flex:1}
+.link{background:none;border:0;color:var(--muted);text-decoration:underline;padding:8px 0;font-size:14px;align-self:flex-start}
+input[type=text],textarea{width:100%;font:inherit;color:var(--fg);background:var(--bg);border:1.5px solid var(--line);border-radius:8px;padding:10px 12px}
+textarea{min-height:110px;resize:vertical;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px}
+details summary{cursor:pointer;font-weight:600}
+button:focus-visible,input:focus-visible,textarea:focus-visible,summary:focus-visible{outline:3px solid var(--mas);outline-offset:2px}
+.tag-m{color:var(--mas);font-weight:600}.tag-l{color:var(--menos);font-weight:600}
+.err{color:var(--menos);font-weight:600}
+@media (prefers-reduced-motion:no-preference){.bar i{transition:width .25s}}
+</style>
+</head>
+<body>
+<main id="app"></main>
+
+<script>
+/* URL del servicio de Google Apps Script que guarda las respuestas en la hoja de cálculo */
+const ENDPOINT="https://script.google.com/macros/s/AKfycbxjPaJWM7B1mqeelBBOsS74ck2gz7E5Ssf5S8JAd_wr0kbheSEa_2l5mfrFuIiY3CO6/exec";
+
+/*LOGIC-START*/
+/* El orden de esta lista debe coincidir con la pestaña "Temas" de la hoja (el ID de cada tema es su posición). */
+const TEMAS=[
+ {
+  "t": "Estrategia y experimentación",
+  "q": "¿Planear o adaptarse? Cómo equilibrar la estrategia planificada con la que surge al actuar, y cómo encontrar respuestas rápidas experimentando."
+ },
+ {
+  "t": "Mercadeo y experiencias memorables",
+  "q": "¿Cómo lograr que un producto importe al cliente y que recuerde la experiencia?"
+ },
+ {
+  "t": "Riesgo y cisnes negros",
+  "q": "¿Cómo decidir cuando los datos históricos no bastan?"
+ },
+ {
+  "t": "Inteligencia financiera básica",
+  "q": "Ahorro, inversión y deudas. ¿Cómo se acumulan las ventajas con el interés compuesto?"
+ },
+ {
+  "t": "Deuda e inversión",
+  "q": "¿Cuándo la deuda crea valor y cuándo amplifica errores? ¿CDT, inmueble o negocio? Cómo comparar alternativas."
+ },
+ {
+  "t": "Dinero, felicidad y suficiencia",
+  "q": "¿El dinero compra felicidad? ¿Cuánto es suficiente? Avaricia, despilfarro y administración sabia."
+ },
+ {
+  "t": "Legado personal",
+  "q": "¿Qué es lo que construimos a lo largo de nuestra vida?"
+ },
+ {
+  "t": "Trabajo y propósito",
+  "q": "¿Trabajamos solo por dinero o por excelencia? ¿Qué harías si no necesitaras plata?"
+ },
+ {
+  "t": "La muerte",
+  "q": "Si te quedara un año, ¿qué cambiarías ya?"
+ },
+ {
+  "t": "Pareto",
+  "q": "¿Cómo identificar el 20 % que genera más valor?"
+ },
+ {
+  "t": "Teoría de sistemas",
+  "q": "¿Por qué solucionar un problema puede empeorarlo?"
+ },
+ {
+  "t": "Aprendizaje",
+  "q": "¿Cómo aprender más rápido y dominar un conocimiento?"
+ },
+ {
+  "t": "Libre albedrío",
+  "q": "¿Qué tanto de nuestra vida está escrito?"
+ },
+ {
+  "t": "La búsqueda de la verdad",
+  "q": "¿Creemos lo que nos conviene o lo que es verdad?"
+ },
+ {
+  "t": "Democracia",
+  "q": "¿Es el mejor sistema político posible?"
+ },
+ {
+  "t": "Sociedades del futuro",
+  "q": "¿Cómo nos imaginamos una sociedad del futuro?"
+ },
+ {
+  "t": "Religión y política en la sociedad",
+  "q": "¿Qué rol cumplen la religión y la política en nuestra sociedad?"
+ },
+ {
+  "t": "Patriotismo y política sin pelear",
+  "q": "¿Cómo conversar sin dividirnos?"
+ },
+ {
+  "t": "Productividad y disciplina",
+  "q": "¿Cómo administrar el tiempo y las prioridades, y construir hábitos que no dependan del ánimo?"
+ },
+ {
+  "t": "IA y productividad",
+  "q": "¿Cómo usar inteligencia artificial para trabajar mejor?"
+ },
+ {
+  "t": "Ocio que edifica vs. ocio que destruye",
+  "q": "¿En qué se diferencia el ocio que edifica del que destruye?"
+ },
+ {
+  "t": "Minimalismo masculino",
+  "q": "¿Es un defecto? Ordenar casa, taller, carro y mente."
+ },
+ {
+  "t": "Liderazgo: de equipos y personal",
+  "q": "¿Qué hace que un equipo funcione bien? ¿Cómo liderarnos antes de liderar a otros?"
+ },
+ {
+  "t": "Fortaleza ante el fracaso",
+  "q": "¿Qué hicimos con nuestro mayor fracaso?"
+ },
+ {
+  "t": "La palabra empeñada",
+  "q": "Volver a ser hombres que cumplen lo que dicen."
+ },
+ {
+  "t": "Mandar a la mierda con educación",
+  "q": "Cómo poner límites y decir que no sin perder la compostura."
+ },
+ {
+  "t": "Ansiedad y rumiación",
+  "q": "¿Cómo dejar de darle vueltas a todo en la cabeza?"
+ },
+ {
+  "t": "Silencio y soledad",
+  "q": "¿Cuándo fue la última vez que estuviste una hora sin estímulos?"
+ },
+ {
+  "t": "Cómo pedir ayuda",
+  "q": "La fortaleza de reconocer que no podemos solos."
+ },
+ {
+  "t": "Presión profesional e impostor",
+  "q": "¿Cómo gestionar la presión ante retos profesionales y evitar el síndrome del impostor?"
+ },
+ {
+  "t": "Relaciones de pareja sanas",
+  "q": "¿Cómo construir una relación sana sin perder individualidad?"
+ },
+ {
+  "t": "Ser cabeza de hogar hoy",
+  "q": "¿Qué significa hoy ser cabeza de hogar?"
+ },
+ {
+  "t": "Amistad masculina",
+  "q": "¿Por qué nos cuesta tener amigos profundos después de los 30?"
+ },
+ {
+  "t": "La paternidad",
+  "q": "¿La paternidad es cosa del pasado?"
+ }
+];
+const N=TEMAS.length;          /* temas */
+const K=4;                     /* temas por bloque */
+const NB=Math.ceil(N*2/K);     /* bloques: cada tema aparece 2 veces por persona */
+
+function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+
+/* Diseño balanceado y distinto para cada persona: cada tema aparece 2 veces, sin repetir tema dentro de un bloque. */
+function disenarUno(){
+  const rem=new Array(N).fill(2), pair={}, blocks=[];
+  shuffle([...Array(N).keys()]).slice(0,NB*K-N*2).forEach(i=>rem[i]++);   /* huecos sobrantes, si N*2 no es múltiplo de K */
+  const key=(a,b)=>a<b?a*100+b:b*100+a;
+  for(let b=0;b<NB;b++){
+    const chosen=[];
+    for(let k=0;k<K;k++){
+      let bi=-1,bs=-1e9;
+      for(let i=0;i<N;i++){
+        if(rem[i]<=0||chosen.includes(i)) continue;
+        let s=rem[i]*1000+Math.random()*10;
+        for(const c of chosen) s-=(pair[key(i,c)]||0)*40;
+        if(s>bs){bs=s;bi=i;}
+      }
+      chosen.push(bi);
+    }
+    if(chosen.includes(-1)) return null;
+    chosen.forEach(i=>rem[i]--);
+    for(let a=0;a<K;a++)for(let c=a+1;c<K;c++){const kk=key(chosen[a],chosen[c]);pair[kk]=(pair[kk]||0)+1;}
+    blocks.push(shuffle(chosen));
+  }
+  return blocks;
+}
+function disenoValido(bl){
+  if(!bl||bl.length!==NB) return false;
+  const ap=new Array(N).fill(0);
+  for(const b of bl){ if(b.length!==K||new Set(b).size!==K) return false; b.forEach(t=>ap[t]++); }
+  return ap.every(n=>n===2||n===3);
+}
+function disenar(){
+  for(let i=0;i<50;i++){const d=disenarUno(); if(disenoValido(d)) return shuffle(d);}
+  return null;
+}
+
+/* Datos que se envían a la hoja (ids de 1 a N) */
+function armarPayload(rid,alias,blocks,ans){
+  return {v:2,rid:rid,alias:(alias||"").trim().slice(0,40),
+    blocks:blocks.map((bl,b)=>({i:bl.map(x=>x+1),m:ans[b].m+1,l:ans[b].l+1}))};
+}
+/* Código de respaldo: se puede pegar en la hoja con el menú Tertulias > Importar un código */
+function armarCodigo(alias,blocks,ans){
+  const al=(alias||"").replace(/[|,\r\n]/g," ").trim()||"anónimo";
+  const p=blocks.map((bl,b)=>bl.map(x=>x+1).concat([ans[b].m+1,ans[b].l+1]).join("."));
+  return "MD2|"+al+"|"+p.join(",");
+}
+function nuevoId(){
+  try{if(window.crypto&&crypto.randomUUID) return crypto.randomUUID();}catch(e){}
+  let s="";const c="abcdefghijklmnopqrstuvwxyz0123456789";for(let i=0;i<24;i++)s+=c[Math.floor(Math.random()*c.length)];return s;
+}
+/*LOGIC-END*/
+
+/* ---------- Estado ---------- */
+const KEY="md2-tertulias";
+let S={alias:"",blocks:[],ans:{},step:-1,rid:"",sent:false};
+let view="intro";
+try{
+  const r=localStorage.getItem(KEY);
+  if(r){
+    const o=JSON.parse(r);
+    if(o&&Array.isArray(o.blocks)&&o.blocks.length===NB&&o.blocks.every(b=>Array.isArray(b)&&b.length===K&&b.every(x=>Number.isInteger(x)&&x>=0&&x<N))){
+      S=o; S.ans=S.ans||{}; view=S.step>=NB?"done":(S.step>=0?"block":"intro");
+    }
+  }
+}catch(e){}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+const app=document.getElementById("app");
+const $=id=>document.getElementById(id);
+
+/* ---------- Envío a la hoja de cálculo ---------- */
+let envio="idle";   /* idle | sending | ok | sent | fail | off */
+async function enviar(){
+  if(!ENDPOINT||ENDPOINT.indexOf("__")===0) return "off";
+  if(!S.rid){S.rid=nuevoId();save();}
+  const rid=/^prueba/i.test((S.alias||"").trim())?"PRUEBA-"+S.rid:S.rid;   /* nombre "prueba..." = envío de prueba */
+  const body=JSON.stringify(armarPayload(rid,S.alias,S.blocks,S.ans));
+  const opts={method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:body};
+  try{
+    const c=new AbortController(), to=setTimeout(()=>c.abort(),25000);
+    const res=await fetch(ENDPOINT,Object.assign({signal:c.signal},opts)); clearTimeout(to);
+    const j=await res.json();
+    if(!(j&&j.ok)&&window.console) console.warn("Respuesta del servicio:",j);
+    return j&&j.ok?"ok":"fail";
+  }catch(e){
+    /* Si no se pudo leer la respuesta, se reenvía sin leerla. El servicio reemplaza por el mismo identificador, así que no hay duplicados. */
+    try{await fetch(ENDPOINT,Object.assign({mode:"no-cors"},opts));return "sent";}catch(e2){return "fail";}
+  }
+}
+async function enviarYMostrar(){
+  envio="sending"; if(view==="done") render();
+  const r=await enviar(); envio=r;
+  if(r==="ok"||r==="sent"){S.sent=true;save();}
+  if(view==="done") render();
+}
+
+/* ---------- Vistas ---------- */
+function vIntro(){
+  app.innerHTML=`
+    <p class="eyebrow">Tertulias de hombres</p>
+    <h1 tabindex="-1">Priorización de temas para nuestras tertulias</h1>
+    <p>Queremos elegir los temas de nuestras próximas tertulias a partir de los intereses del grupo. Verás ${NB} bloques con cuatro temas cada uno. En cada bloque, selecciona el tema que <span class="tag-m">MÁS</span> te gustaría discutir y el que <span class="tag-l">MENOS</span>. Deben ser dos temas diferentes.</p>
+    <p class="small muted">Toma unos 4 minutos. No hay respuestas correctas ni incorrectas: nos interesa tu preferencia genuina. Cada tema aparece dos veces, en bloques distintos.</p>
+    <div class="panel">
+      <label for="alias"><b>Nombre o alias</b> <span class="muted">(opcional)</span></label>
+      <input type="text" id="alias" maxlength="40" autocomplete="off" value="${esc(S.alias)}">
+      <p class="small muted">Tus respuestas se guardan en una hoja de cálculo de quien organiza. Si escribes tu nombre, lo verá junto a tus elecciones. Déjalo vacío para responder de forma anónima.</p>
+    </div>
+    <button class="btn" data-go="start">${S.blocks.length&&S.step>=0?"Continuar":"Empezar"}</button>`;
+}
+function vBloque(){
+  const bl=S.blocks[S.step], a=S.ans[S.step]||{};
+  const ok=a.m!==undefined&&a.l!==undefined;
+  app.innerHTML=`
+    <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="${NB}" aria-valuenow="${S.step}"><i style="width:${(S.step/NB)*100}%"></i></div>
+    <div class="head"><h2 tabindex="-1">Bloque ${S.step+1} de ${NB}</h2><span class="small muted">${ok?"Listo":"Elige dos"}</span></div>
+    <p class="small muted">Toca <b class="tag-m">Más</b> en el tema que más te gustaría discutir y <b class="tag-l">Menos</b> en el que menos. Deben ser temas diferentes.</p>
+    ${bl.map(t=>`
+      <article class="card ${a.m===t?"is-mas":""} ${a.l===t?"is-menos":""}">
+        <h3>${esc(TEMAS[t].t)}</h3><p>${esc(TEMAS[t].q)}</p>
+        <div class="pick">
+          <button data-act="m" data-t="${t}" aria-pressed="${a.m===t}">+ Más</button>
+          <button data-act="l" data-t="${t}" aria-pressed="${a.l===t}">− Menos</button>
+        </div>
+      </article>`).join("")}
+    <div class="nav">
+      <button class="btn ghost" data-go="prev">Anterior</button>
+      <button class="btn" data-go="next" ${ok?"":"disabled"}>${S.step===NB-1?"Terminar":"Siguiente"}</button>
+    </div>`;
+}
+function vFin(){
+  const code=armarCodigo(S.alias,S.blocks,S.ans);
+  const msg={
+    sending:"Enviando tus respuestas…",
+    idle:"Enviando tus respuestas…",
+    ok:"Tus respuestas quedaron registradas. No tienes que hacer nada más.",
+    sent:"Tus respuestas se enviaron, pero no pudimos confirmar que llegaron. Para estar seguro, reintenta el envío o mándale tu código de respaldo a quien organiza.",
+    fail:"No pudimos enviar tus respuestas. Revisa tu conexión y reintenta, o copia tu código de respaldo y envíaselo a quien organiza la tertulia.",
+    off:"Esta página aún no está conectada a la hoja de cálculo. Copia tu código de respaldo y envíaselo a quien organiza la tertulia."
+  }[envio];
+  const reintentar=(envio==="fail"||envio==="sent")?`<button class="btn" data-go="retry">Reintentar envío</button>`:"";
+  app.innerHTML=`
+    <div class="bar"><i style="width:100%"></i></div>
+    <h1 tabindex="-1">¡Gracias por participar!</h1>
+    <p>Tus respuestas nos ayudarán a elegir los temas de las tertulias.</p>
+    <div class="panel">
+      <p ${envio==="fail"||envio==="off"?'class="err"':""} role="status">${msg}</p>
+      ${reintentar}
+      <details ${envio==="ok"||envio==="sending"||envio==="idle"?"":"open"}>
+        <summary>Código de respaldo</summary>
+        <div style="display:flex;flex-direction:column;gap:10px;margin-top:10px">
+          <textarea id="code" readonly rows="4">${esc(code)}</textarea>
+          <button class="btn ghost" data-go="copy">Copiar código</button>
+          <p class="small muted" id="copymsg"></p>
+        </div>
+      </details>
+    </div>
+    <button class="link" data-go="redo">Empezar de nuevo</button>`;
+}
+
+/* ---------- Render y eventos ---------- */
+function render(){ if(view==="intro") vIntro(); else if(view==="block") vBloque(); else vFin(); }
+function foco(){const h=app.querySelector("h1,h2"); if(h) h.focus({preventScroll:true});}
+function copiar(el,msgEl,okTxt){
+  const txt=el.value;
+  const fallback=()=>{el.select();msgEl.textContent="Selecciona el texto y cópialo manualmente.";};
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(txt).then(()=>{msgEl.textContent=okTxt;},fallback);
+  }else fallback();
+}
+app.addEventListener("input",e=>{ if(e.target.id==="alias"){S.alias=e.target.value;save();} });
+app.addEventListener("click",async e=>{
+  const btn=e.target.closest("button"); if(!btn) return;
+  if(btn.dataset.act){
+    const b=S.step, t=+btn.dataset.t, a=S.ans[b]=S.ans[b]||{};
+    if(btn.dataset.act==="m"){ if(a.m===t) delete a.m; else {a.m=t; if(a.l===t) delete a.l;} }
+    else { if(a.l===t) delete a.l; else {a.l=t; if(a.m===t) delete a.m;} }
+    save(); render();
+    const f=app.querySelector(`[data-act="${btn.dataset.act}"][data-t="${t}"]`); if(f) f.focus({preventScroll:true});
+    return;
+  }
+  const go=btn.dataset.go; if(!go) return;
+  if(go==="start"){
+    if(!S.blocks.length){
+      const d=disenar(); if(!d){app.insertAdjacentHTML("beforeend",`<p class="err">No se pudo preparar la encuesta. Recarga la página e inténtalo de nuevo.</p>`);return;}
+      S.blocks=d; S.ans={}; S.step=0; S.sent=false;
+    }
+    if(!S.rid) S.rid=nuevoId();
+    if(S.step<0) S.step=0;
+    view=S.step>=NB?"done":"block"; save(); render(); window.scrollTo(0,0); foco();
+  }
+  else if(go==="next"){
+    S.step++; save();
+    if(S.step>=NB){view="done"; window.scrollTo(0,0); await enviarYMostrar(); foco();}
+    else{render(); window.scrollTo(0,0); foco();}
+  }
+  else if(go==="prev"){ if(S.step<=0){S.step=-1;view="intro";} else S.step--; save(); render(); window.scrollTo(0,0); foco(); }
+  else if(go==="retry") enviarYMostrar();
+  else if(go==="copy") copiar($("code"),$("copymsg"),"Código copiado. Envíaselo a quien organiza la tertulia.");
+  else if(go==="redo"){S={alias:S.alias,blocks:[],ans:{},step:-1,rid:S.rid,sent:false};envio="idle";save();view="intro";render();window.scrollTo(0,0);foco();}
+});
+render();
+if(view==="done"&&!S.sent) enviarYMostrar();
+</script>
+</body>
+</html>
